@@ -36,6 +36,7 @@ _FOSC(IOL1WAY_OFF);
 #define PSOC_TX_LENGTH 12               // Data Length
 #define PSOC_SS LATBbits.LATB7          // Slave Select for the PSOC SPI
 char MTR_PSOC_TX_BUF[PSOC_TX_LENGTH];   // PSOC TX data buffer
+char MTR_PSOC_RX_BUF[PSOC_TX_LENGTH];
 void MTR_PSOC_SPI_INIT(void);
 void MTR_PSOC_SPI(void);
 void Motorpsoc_Foreward(void);
@@ -183,8 +184,8 @@ void update_display() {
 }
 void MTR_PSOC_SPI(){
     int i;
-    SPI1BUF = 0x55;
-    while(!SPI1STATbits.SPITBF);
+    //SPI1BUF = 0x55;
+    //while(!SPI1STATbits.SPITBF);
     Delay(50);
 
 
@@ -192,14 +193,20 @@ void MTR_PSOC_SPI(){
     {
         PSOC_SS = 0;
         SPI1BUF = MTR_PSOC_TX_BUF[i];
-        while(!SPI1STATbits.SPITBF);
-        Delay(50);                     // Need this so data isn't overwritten
+        while(!SPI1STATbits.SPIRBF);    // Wait for the recieve data
+        MTR_PSOC_RX_BUF[i] = SPI1BUF;
+        Delay(50);                      // Need this so data isn't overwritten
                                         // in the buffer, and for PSOC
     }
-    SPI1BUF = 0xFF;
-    Delay(50);
+    //SPI1BUF = 0xFF;
+    //Delay(50);
     Nop();
     PSOC_SS = 1;
+
+    /*
+     * Check to see if these statements are needed
+     *  they shouldn't do anything because
+     */
     SPI1BUF = 0x2A;
     Delay(50);
     SPI1BUF = 0x20;
@@ -220,6 +227,7 @@ void MTR_PSOC_SPI_INIT(){
     __builtin_write_OSCCONL(0x57);
     __builtin_write_OSCCONL(0x17);        // Unlock Peripherals,
                                           // IOLOCK did not work
+    /*  Consilidate these Peripheral Assignments    */
 
     RPOR4bits.RP8R = 7;          // Data out on Pin 8
     RPOR3bits.RP6R = 8;          // Serial Clock on Pin 6
@@ -284,6 +292,7 @@ void Motorpsoc_Foreward() {
 }
 
 void Motorpsoc_ClrBuf() {
+  /*    Clear out the SPI TX buffer     */
   MA_DUTY = 0;
   MB_DUTY = 0;
   MA_CTL = 0;
@@ -296,6 +305,20 @@ void Motorpsoc_ClrBuf() {
   MTR_PSOC_TX_BUF[9] = 0xaa;
   MTR_PSOC_TX_BUF[10] = 0xaa;
   MTR_PSOC_TX_BUF[11] = 0xaa;
+  /*    Clear out the SPI Rx Buffer     */
+  MTR_PSOC_RX_BUF[0] = 0;
+  MTR_PSOC_RX_BUF[1] = 0;
+  MTR_PSOC_RX_BUF[2] = 0;
+  MTR_PSOC_RX_BUF[3] = 0;
+  MTR_PSOC_RX_BUF[4] = 0;
+  MTR_PSOC_RX_BUF[5] = 0;
+  MTR_PSOC_RX_BUF[6] = 0;
+  MTR_PSOC_RX_BUF[7] = 0;
+  MTR_PSOC_RX_BUF[8] = 0;
+  MTR_PSOC_RX_BUF[9] = 0;
+  MTR_PSOC_RX_BUF[10] = 0;
+  MTR_PSOC_RX_BUF[11] = 0;
+
 }
 
 void timerinit(){
