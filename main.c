@@ -54,6 +54,7 @@ void Motorpsoc_ClrBuf(void);
 #define RESET_MASK          0x08//0b00001000
 #define HALFBRIDGE_MASK     0x01//0b00000001
 
+
 /**************************************************
  *
  *
@@ -96,8 +97,9 @@ int main()
 
     while(1)
     {
-        Motorpsoc_Foreward();
+        
         if(IFS0bits.T1IF){
+            Motorpsoc_Foreward();
             XBLNK != XBLNK;
             IFS0bits.T1IF = 0;
             MTR_PSOC_SPI();
@@ -156,7 +158,7 @@ void init() {
         MTR_PSOC_SPI_INIT();
 
 	// Turn it on in master mode
-	SPI1CON1 = 0x013F;
+	SPI1CON1 = 0x0135;              // Preset scaler 1MHz/48
 	SPI1STATbits.SPIEN = 1;
 
 	// Just in case
@@ -183,11 +185,7 @@ void MTR_PSOC_SPI(){
     int i;
     SPI1BUF = 0x55;
     while(!SPI1STATbits.SPITBF);
-    Nop();
-    Nop();
-    Nop();
-    Nop();
-    Nop();
+    Delay(50);
 
 
     for(i = 0; i < PSOC_TX_LENGTH; i++)
@@ -195,10 +193,25 @@ void MTR_PSOC_SPI(){
         PSOC_SS = 0;
         SPI1BUF = MTR_PSOC_TX_BUF[i];
         while(!SPI1STATbits.SPITBF);
-        Delay(100);
+        Delay(50);                     // Need this so data isn't overwritten
+                                        // in the buffer, and for PSOC
     }
+    SPI1BUF = 0xFF;
+    Delay(50);
     Nop();
     PSOC_SS = 1;
+    SPI1BUF = 0x2A;
+    Delay(50);
+    SPI1BUF = 0x20;
+    Delay(50);
+    SPI1BUF = 0x20;
+    Delay(50);
+    SPI1BUF = 0x33;
+    Delay(50);
+    SPI1BUF = 0x00;
+    Delay(50);
+    SPI1BUF = 0xFF;
+    Delay(50);
 }
 
 void MTR_PSOC_SPI_INIT(){
