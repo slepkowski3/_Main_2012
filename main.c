@@ -41,6 +41,10 @@ void MTR_PSOC_SPI_INIT(void);
 void MTR_PSOC_SPI(void);
 void Motorpsoc_Foreward(void);
 void Motorpsoc_ClrBuf(void);
+void Motorpsoc_Brake(void);
+void Motorpsoc_Backward(void);
+void Motorpsoc_Reverse(void);
+void Motorpsoc_Left(void);
 
 
 
@@ -172,16 +176,6 @@ void init() {
 
 }
 
-void update_display() {
-	int i;
-	// send minutes
-	GSLAT_M = 0;
-	for (i = DATA_WORDS - 1; i >= 0; i--) {
-		SPI1BUF = min_data[i];
-		while (!SPI1STATbits.SPITBF);
-	}
-	GSLAT_M = 1;
-}
 void MTR_PSOC_SPI(){
     int i;
     //SPI1BUF = 0x55;
@@ -193,8 +187,10 @@ void MTR_PSOC_SPI(){
     {
         PSOC_SS = 0;
         SPI1BUF = MTR_PSOC_TX_BUF[i];
-        while(!SPI1STATbits.SPIRBF);    // Wait for the recieve data
+        while(!SPI1STATbits.SPIRBF);
         MTR_PSOC_RX_BUF[i] = SPI1BUF;
+            // Wait for the recieve data
+        
         Delay(50);                      // Need this so data isn't overwritten
                                         // in the buffer, and for PSOC
     }
@@ -244,9 +240,6 @@ void MTR_PSOC_SPI_INIT(){
 
 }
 
-
-
-
 void Motorpsoc_Foreward() {
 
 
@@ -275,14 +268,14 @@ void Motorpsoc_Foreward() {
        MB_CTL = BRAKE_MASK | COAST_MASK;
 
        if (MA_DUTY < 80)   // a duty cycle between 0 and 80 doesn't move the robot
-        MA_DUTY = 80;
+        MA_DUTY = 192;
        else if (MA_DUTY < 192) // max duty cycle at 192
          MA_DUTY += 10;
        else
          MA_DUTY = 192;
 
        if (MB_DUTY < 80)
-        MB_DUTY = 80;
+        MB_DUTY = 192;
        else if (MB_DUTY < 192)
          MB_DUTY += 10;
        else
@@ -334,4 +327,116 @@ void timerinit(){
     IEC0bits.T1IE = 0; // Enable Timer1 interrupt
     T1CONbits.TON = 1; // Start Timer
 
+}
+
+void Motorpsoc_Brake() {
+  MA_CTL &= ~BRAKE_MASK;
+  MB_CTL &= ~BRAKE_MASK;
+  MA_DUTY = 0;
+  MB_DUTY = 0;
+
+  MTR_PSOC_SPI();
+}
+
+void Motorpsoc_Backward() {
+
+    if (MA_DUTY ==0 && MB_DUTY == 0) {  // if stopped
+        MA_CTL = DIR_MASK | BRAKE_MASK | COAST_MASK;   // reverse motor direction and go backwards
+        MB_CTL = DIR_MASK | BRAKE_MASK | COAST_MASK;
+    }
+
+    if (MA_CTL & DIR_MASK)  {    // if going backwards, increase duty cycle
+        MA_CTL = DIR_MASK | BRAKE_MASK | COAST_MASK;
+        MB_CTL = DIR_MASK | BRAKE_MASK | COAST_MASK;
+
+       if (MA_DUTY < 80)   // a duty cycle between 0 and 80 doesn't move the robot
+        MA_DUTY = 80;
+       else if (MA_DUTY < 192) // max duty cycle at 192
+         MA_DUTY += 10;
+       else
+         MA_DUTY = 192;
+
+       if (MB_DUTY < 80)
+        MB_DUTY = 80;
+       else if (MB_DUTY < 192)
+         MB_DUTY += 10;
+       else
+         MB_DUTY = 192;
+
+    } else {                     // if going forward, decrease duty cycle
+       MA_CTL = BRAKE_MASK | COAST_MASK;
+       MB_CTL = BRAKE_MASK | COAST_MASK;
+
+      if (MA_DUTY >= 80) // a duty cycle between 0 and 80 doesn't move the robot
+        MA_DUTY -= 10;
+      else
+        MA_DUTY = 0;
+
+      if (MB_DUTY >= 80)
+        MB_DUTY -= 10;
+      else
+        MB_DUTY = 0;
+
+    }
+
+//  SPI_Motorpsoc();
+
+}
+
+void Motorpsoc_Reverse() {    // reverse direction
+
+  if (MA_DUTY ==0 && MB_DUTY == 0) {       // must be stopped
+
+    if (MA_CTL & DIR_MASK)         {
+        MA_CTL = BRAKE_MASK | COAST_MASK;
+        MB_CTL = BRAKE_MASK | COAST_MASK;
+    } else {
+        MA_CTL = DIR_MASK | BRAKE_MASK | COAST_MASK;
+        MB_CTL = DIR_MASK | BRAKE_MASK | COAST_MASK;
+
+    }
+  }
+
+}
+
+void Motorpsoc_Left() {
+    if (MA_CTL & DIR_MASK)  {
+        MA_CTL = DIR_MASK | BRAKE_MASK | COAST_MASK;
+        MB_CTL = DIR_MASK | BRAKE_MASK | COAST_MASK;
+    } else {
+       MA_CTL = BRAKE_MASK | COAST_MASK;
+       MB_CTL = BRAKE_MASK | COAST_MASK;
+
+    }
+  if (MA_DUTY >= 32)
+    MA_DUTY -= 32;
+  else
+    MA_DUTY = 0;
+  if (MB_DUTY < 224)
+    MB_DUTY += 32;
+  else
+    MB_DUTY = 255;
+
+  MTR_PSOC_SPI();
+}
+
+void Motorpsoc_Right(void) {
+    if (MA_CTL & DIR_MASK)  {
+        MA_CTL = DIR_MASK | BRAKE_MASK | COAST_MASK;
+        MB_CTL = DIR_MASK | BRAKE_MASK | COAST_MASK;
+    } else {
+       MA_CTL = BRAKE_MASK | COAST_MASK;
+       MB_CTL = BRAKE_MASK | COAST_MASK;
+
+    }
+  if (MA_DUTY < 224)
+    MA_DUTY += 32;
+  else
+    MA_DUTY = 255;
+  if (MB_DUTY >= 32)
+    MB_DUTY -= 32;
+  else
+    MB_DUTY = 0;
+
+  MTR_PSOC_SPI();
 }
