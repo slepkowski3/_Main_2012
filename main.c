@@ -45,6 +45,8 @@ void Motorpsoc_Brake(void);
 void Motorpsoc_Backward(void);
 void Motorpsoc_Reverse(void);
 void Motorpsoc_Left(void);
+void Motorpsoc_Right(void);
+void wirelessinit(void);
 
 
 
@@ -62,13 +64,17 @@ void Motorpsoc_Left(void);
 
 /**************************************************
  *
- *
  * Set up a timer to control the SPI
  *
  *************************************************/
 void timerinit(void);
 
-
+/**************************************************
+ *
+ * UART
+ *
+ *************************************************/
+char recievechar;
 
 
 
@@ -95,20 +101,47 @@ int main()
 {
 
     init();
-    //zero_dc();
     XBLNK = 1;
-    timerinit();
+    //timerinit();
     Motorpsoc_ClrBuf();
+    wirelessinit();
 
     while(1)
     {
-        
-        if(IFS0bits.T1IF){
-            Motorpsoc_Foreward();
-            XBLNK != XBLNK;
-            IFS0bits.T1IF = 0;
-            MTR_PSOC_SPI();
+
+        char ReceivedChar;
+        /* check for receive errors */
+        if(U1STAbits.FERR == 1)
+        {
+            continue;
         }
+        /* must clear the overrun error to keep uart receiving */
+        if(U1STAbits.OERR == 1)
+        {
+            U1STAbits.OERR = 0;
+            continue;
+        }
+        /* get the data */
+        if(U1STAbits.URXDA == 1)
+        {
+            recievechar = U1RXREG;
+        }
+        switch(recievechar)
+        {
+            case 'a':       // LEFT
+                Motorpsoc_Left();
+                break;
+            case 'w':       //FORWARD
+                Motorpsoc_Foreward();
+                break;
+            case 's':
+                Motorpsoc_Backward();
+                break;
+            case 'd':
+                Motorpsoc_Right();
+                break;
+        }
+        //MTR_PSOC_SPI();
     }
 }
 
@@ -228,6 +261,9 @@ void MTR_PSOC_SPI_INIT(){
     RPOR4bits.RP8R = 7;          // Data out on Pin 8
     RPOR3bits.RP6R = 8;          // Serial Clock on Pin 6
     RPINR20bits.SDI1R = 9;      // Pin 9 Set as SPI
+
+    RPOR5bits.RP11R = 3;        // TX line is RP11 pin
+    RPINR18bits.U1RXR = 10;     // RX line is RP10 pin
                                 // Slave Select set up on Pin 7
     //RPOR5 = 0x0807;
 
@@ -268,11 +304,11 @@ void Motorpsoc_Foreward() {
        MB_CTL = BRAKE_MASK | COAST_MASK;
 
        if (MA_DUTY < 80)   // a duty cycle between 0 and 80 doesn't move the robot
-        MA_DUTY = 192;
+        MA_DUTY = 80;
        else if (MA_DUTY < 192) // max duty cycle at 192
          MA_DUTY += 10;
        else
-         MA_DUTY = 192;
+         MA_DUTY = 80;
 
        if (MB_DUTY < 80)
         MB_DUTY = 192;
@@ -420,7 +456,7 @@ void Motorpsoc_Left() {
   MTR_PSOC_SPI();
 }
 
-void Motorpsoc_Right(void) {
+void Motorpsoc_Right() {
     if (MA_CTL & DIR_MASK)  {
         MA_CTL = DIR_MASK | BRAKE_MASK | COAST_MASK;
         MB_CTL = DIR_MASK | BRAKE_MASK | COAST_MASK;
@@ -439,4 +475,34 @@ void Motorpsoc_Right(void) {
     MB_DUTY = 0;
 
   MTR_PSOC_SPI();
+}
+
+void wirelessinit(){
+    // For Fcy 1MHz and Baud rate of 4800 UxBRG = 12
+    
+    U1MODEbits.UARTEN   = 0;  // Disable the unit
+    U1MODEbits.PDSEL    = 0;   // No Parity, 8 data bits
+    U1MODEbits.STSEL    = 0;   // One Stop bit
+    U1MODEbits.ABAUD    = 0;   // Disables autobaud
+    U1MODEbits.BRGH     = 0;    // Baud Rate determined for this setting
+    U1BRG               = 5;//for 9600, 12 for 4800
+
+    U1STAbits.URXISEL   = 0;  // Generate and interrupt when one char recieved
+    IEC0bits.U1TXIE     = 1; // Enable UART TX interrupt
+    U1MODEbits.UARTEN   = 1; // Enable UART
+    U1STAbits.UTXEN     = 1; // Enable UART TX
+
+}
+
+void __attribute__((__interrupt__)) _U1RXInterrupt(void){
+
+    recievechar = U1RXREG;
+    IFS0bits.U1RXIF = 0;
+
+}
+
+void __attribute__((__interrupt__)) _U1TXInterrupt(void)
+{
+      IFS0bits.U1TXIF = 0; // clear TX interrupt flag
+      U1TXREG = 'a'; // Transmit one character
 }
