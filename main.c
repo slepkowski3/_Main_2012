@@ -11,11 +11,14 @@
 	#include <p24Hxxxx.h>
 #endif
 
-#include <stdint.h>        /* Includes uint16_t definition                    */
-#include <stdbool.h>       /* Includes true/false definition                  */
+#include "libpic30.h"
+#include "uart.h"
 
-#include "system.h"        /* System funct/params, like osc/peripheral config */
-#include "user.h"          /* User funct/params, such as InitApp              */
+//#include <stdint.h>        /* Includes uint16_t definition                    */
+//#include <stdbool.h>       /* Includes true/false definition                  */
+
+//#include "system.h"        /* System funct/params, like osc/peripheral config */
+//#include "user.h"          /* User funct/params, such as InitApp              */
 
 /*******************************
  * Configuration selections
@@ -75,6 +78,9 @@ void timerinit(void);
  *
  *************************************************/
 char recievechar;
+#define FCY 1000000
+#define BAUD 9600   //4800 has minimized error with 1MHz clock
+#define BRGVAL ((FCY/(16*BAUD))-1)
 
 
 
@@ -101,7 +107,7 @@ int main()
 {
 
     init();
-    XBLNK = 1;
+    // XBLNK = 1;
     //timerinit();
     Motorpsoc_ClrBuf();
     wirelessinit();
@@ -109,7 +115,6 @@ int main()
     while(1)
     {
 
-        char ReceivedChar;
         /* check for receive errors */
         if(U1STAbits.FERR == 1)
         {
@@ -125,24 +130,29 @@ int main()
         if(U1STAbits.URXDA == 1)
         {
             recievechar = U1RXREG;
+            switch(recievechar)
+            {
+                case 'a':       // LEFT
+                    Motorpsoc_Left();
+                    break;
+                case 'w':       //FORWARD
+                    Motorpsoc_Foreward();
+                    break;
+                case 's':
+                    Motorpsoc_Backward();
+                    break;
+                case 'd':
+                    Motorpsoc_Right();
+                    break;
+            }
+            MTR_PSOC_SPI();
         }
-        switch(recievechar)
-        {
-            case 'a':       // LEFT
-                Motorpsoc_Left();
-                break;
-            case 'w':       //FORWARD
-                Motorpsoc_Foreward();
-                break;
-            case 's':
-                Motorpsoc_Backward();
-                break;
-            case 'd':
-                Motorpsoc_Right();
-                break;
+        if(!U1STAbits.UTXBF){
+            WriteUART1(0x55);         // Use to determine the clocking frequency
         }
-        //MTR_PSOC_SPI();
+
     }
+
 }
 
 /*******************************
@@ -177,7 +187,7 @@ void init() {
 
 	// Turn off drivers
 	//LATB = 0x3040;
-	XBLNK = 0;
+	// XBLNK = 0;
 	GSLAT_M = 1;
         PSOC_SS = 1;
 
@@ -480,28 +490,29 @@ void Motorpsoc_Right() {
 void wirelessinit(){
     // For Fcy 1MHz and Baud rate of 4800 UxBRG = 12
     
-    U1MODEbits.UARTEN   = 0;  // Disable the unit
-    U1MODEbits.PDSEL    = 0;   // No Parity, 8 data bits
-    U1MODEbits.STSEL    = 0;   // One Stop bit
-    U1MODEbits.ABAUD    = 0;   // Disables autobaud
+    U1MODEbits.UARTEN   = 0;    // Disable the unit
+    U1MODEbits.PDSEL    = 0;    // No Parity, 8 data bits
+    U1MODEbits.STSEL    = 0;    // One Stop bit
+    U1MODEbits.ABAUD    = 0;    // Disables autobaud
     U1MODEbits.BRGH     = 0;    // Baud Rate determined for this setting
-    U1BRG               = 5;//for 9600, 12 for 4800
+    U1BRG               = 6;//BRGVAL;    //for 9600, 12 for 4800
 
-    U1STAbits.URXISEL   = 0;  // Generate and interrupt when one char recieved
-    IEC0bits.U1TXIE     = 1; // Enable UART TX interrupt
-    U1MODEbits.UARTEN   = 1; // Enable UART
-    U1STAbits.UTXEN     = 1; // Enable UART TX
+    U1STAbits.URXISEL   = 0;    // Generate and interrupt when one char recieved
+    IEC0bits.U1RXIE     = 0;    // Disabled the RX character interrupt
+    IEC0bits.U1TXIE     = 0;//disabled    // Enable UART TX interrupt
+    U1MODEbits.UARTEN   = 1;    // Enable UART
+    U1STAbits.UTXEN     = 1;    // Enable UART TX
 
 }
 
-void __attribute__((__interrupt__)) _U1RXInterrupt(void){
+void __attribute__((interrupt,auto_psv)) _U1RXInterrupt(void){
 
     recievechar = U1RXREG;
     IFS0bits.U1RXIF = 0;
 
 }
 
-void __attribute__((__interrupt__)) _U1TXInterrupt(void)
+void __attribute__((interrupt,auto_psv)) _U1TXInterrupt(void)
 {
       IFS0bits.U1TXIF = 0; // clear TX interrupt flag
       U1TXREG = 'a'; // Transmit one character
