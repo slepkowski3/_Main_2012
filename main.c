@@ -38,8 +38,8 @@ _FOSC(IOL1WAY_OFF);
  *************************************************/
 #define PSOC_TX_LENGTH 12               // Data Length
 #define PSOC_SS LATBbits.LATB7          // Slave Select for the PSOC SPI
-char MTR_PSOC_TX_BUF[PSOC_TX_LENGTH];   // PSOC TX data buffer
-char MTR_PSOC_RX_BUF[PSOC_TX_LENGTH];
+unsigned char MTR_PSOC_TX_BUF[PSOC_TX_LENGTH];   // PSOC TX data buffer
+unsigned char MTR_PSOC_RX_BUF[PSOC_TX_LENGTH];
 void MTR_PSOC_SPI_INIT(void);
 void MTR_PSOC_SPI(void);
 void Motorpsoc_Foreward(void);
@@ -133,23 +133,26 @@ int main()
             switch(recievechar)
             {
                 case 'a':       // LEFT
-                    Motorpsoc_Left();
+                    Motorpsoc_Right();
                     break;
                 case 'w':       //FORWARD
-                    Motorpsoc_Foreward();
-                    break;
-                case 's':
                     Motorpsoc_Backward();
                     break;
+                case 's':
+                    Motorpsoc_Foreward();
+                    break;
                 case 'd':
-                    Motorpsoc_Right();
+                    Motorpsoc_Left();
+                    break;
+                case ' ':
+                    Motorpsoc_Brake();
                     break;
             }
             MTR_PSOC_SPI();
         }
-        if(!U1STAbits.UTXBF){
-            WriteUART1(0x55);         // Use to determine the clocking frequency
-        }
+        //if(!U1STAbits.UTXBF){
+        //    WriteUART1(0x55);         // Use to determine the clocking frequency
+        //}
 
     }
 
@@ -230,7 +233,9 @@ void MTR_PSOC_SPI(){
     {
         PSOC_SS = 0;
         SPI1BUF = MTR_PSOC_TX_BUF[i];
-        while(!SPI1STATbits.SPIRBF);
+        //if(i < (PSOC_TX_LENGTH - 1)){
+        //    while(!SPI1STATbits.SPIRBF);
+        //}
         MTR_PSOC_RX_BUF[i] = SPI1BUF;
             // Wait for the recieve data
         
@@ -318,10 +323,10 @@ void Motorpsoc_Foreward() {
        else if (MA_DUTY < 192) // max duty cycle at 192
          MA_DUTY += 10;
        else
-         MA_DUTY = 80;
+         MA_DUTY = 192;
 
        if (MB_DUTY < 80)
-        MB_DUTY = 192;
+        MB_DUTY = 80;
        else if (MB_DUTY < 192)
          MB_DUTY += 10;
        else
@@ -395,15 +400,15 @@ void Motorpsoc_Backward() {
         MA_CTL = DIR_MASK | BRAKE_MASK | COAST_MASK;
         MB_CTL = DIR_MASK | BRAKE_MASK | COAST_MASK;
 
-       if (MA_DUTY < 80)   // a duty cycle between 0 and 80 doesn't move the robot
-        MA_DUTY = 80;
+       if (MA_DUTY < 90)   // a duty cycle between 0 and 80 doesn't move the robot
+        MA_DUTY = 90;
        else if (MA_DUTY < 192) // max duty cycle at 192
          MA_DUTY += 10;
        else
          MA_DUTY = 192;
 
-       if (MB_DUTY < 80)
-        MB_DUTY = 80;
+       if (MB_DUTY < 90)
+        MB_DUTY = 90;
        else if (MB_DUTY < 192)
          MB_DUTY += 10;
        else
@@ -413,12 +418,12 @@ void Motorpsoc_Backward() {
        MA_CTL = BRAKE_MASK | COAST_MASK;
        MB_CTL = BRAKE_MASK | COAST_MASK;
 
-      if (MA_DUTY >= 80) // a duty cycle between 0 and 80 doesn't move the robot
+      if (MA_DUTY >= 90) // a duty cycle between 0 and 80 doesn't move the robot
         MA_DUTY -= 10;
       else
         MA_DUTY = 0;
 
-      if (MB_DUTY >= 80)
+      if (MB_DUTY >= 90)
         MB_DUTY -= 10;
       else
         MB_DUTY = 0;
@@ -454,16 +459,16 @@ void Motorpsoc_Left() {
        MB_CTL = BRAKE_MASK | COAST_MASK;
 
     }
-  if (MA_DUTY >= 32)
-    MA_DUTY -= 32;
+  if (MA_DUTY >= 10)// Was 32
+    MA_DUTY -= 2;
   else
     MA_DUTY = 0;
   if (MB_DUTY < 224)
-    MB_DUTY += 32;
+    MB_DUTY += 2;
   else
     MB_DUTY = 255;
 
-  MTR_PSOC_SPI();
+  //MTR_PSOC_SPI();
 }
 
 void Motorpsoc_Right() {
@@ -476,15 +481,15 @@ void Motorpsoc_Right() {
 
     }
   if (MA_DUTY < 224)
-    MA_DUTY += 32;
+    MA_DUTY += 2;
   else
     MA_DUTY = 255;
-  if (MB_DUTY >= 32)
-    MB_DUTY -= 32;
+  if (MB_DUTY >= 10)
+    MB_DUTY -= 2;
   else
     MB_DUTY = 0;
 
-  MTR_PSOC_SPI();
+  //MTR_PSOC_SPI();
 }
 
 void wirelessinit(){
@@ -494,8 +499,8 @@ void wirelessinit(){
     U1MODEbits.PDSEL    = 0;    // No Parity, 8 data bits
     U1MODEbits.STSEL    = 0;    // One Stop bit
     U1MODEbits.ABAUD    = 0;    // Disables autobaud
-    U1MODEbits.BRGH     = 0;    // Baud Rate determined for this setting
-    U1BRG               = 6;//BRGVAL;    //for 9600, 12 for 4800
+    U1MODEbits.BRGH     = 1;    // Baud Rate determined for this setting
+    U1BRG               = 12;//BRGVAL;    //for 9600, 12 for 4800
 
     U1STAbits.URXISEL   = 0;    // Generate and interrupt when one char recieved
     IEC0bits.U1RXIE     = 0;    // Disabled the RX character interrupt
